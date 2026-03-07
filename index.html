@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Professional Invoice Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        @media print { 
+            .no-print { display: none !important; }
+            body { background: white; padding: 0; margin: 0; }
+            @page { margin: 1cm; }
+            .print-footer { 
+                position: fixed; 
+                bottom: 20px; 
+                width: 100%; 
+                text-align: center; 
+                font-size: 0.8rem;
+                border-top: 1px solid #ccc;
+                padding-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+
+<div x-data="invoiceApp()" class="max-w-4xl mx-auto bg-white p-8 shadow-xl rounded-lg min-h-[90vh] relative">
+    
+    <div class="no-print flex justify-between items-center mb-8 border-b pb-4">
+        <div class="flex gap-4">
+            <button @click="activeTab = 'invoice'" :class="activeTab === 'invoice' ? 'font-bold underline' : ''">Invoice View</button>
+            <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'font-bold underline' : ''">Settings</button>
+        </div>
+        <button x-show="activeTab === 'invoice'" @click="printInvoice()" class="bg-purple-600 text-white px-6 py-2 rounded font-bold shadow-md hover:bg-purple-700">
+            Print Invoice
+        </button>
+    </div>
+
+    <div x-show="activeTab === 'invoice'">
+        <div class="flex justify-between border-b pb-4 mb-6">
+            <div>
+                <h1 class="text-3xl font-bold" x-text="config.businessName"></h1>
+                <p class="text-gray-600 whitespace-pre-line" x-text="config.businessAddress"></p>
+            </div>
+            <div class="text-right">
+                <p class="font-bold">Invoice #: <span x-text="config.invoicePrefix + config.invoiceNumber"></span></p>
+                <p>Date: <span x-text="new Date().toLocaleDateString()"></span></p>
+            </div>
+        </div>
+        
+        <div class="mb-8">
+            <h3 class="font-bold text-gray-500 uppercase text-sm">Bill To:</h3>
+            <p class="font-bold text-lg" x-text="client.name"></p>
+            <p class="text-gray-600 whitespace-pre-line" x-text="client.address"></p>
+        </div>
+
+        <table class="w-full mb-8">
+            <thead class="border-b bg-gray-50">
+                <tr class="text-left">
+                    <th class="p-2">Item</th>
+                    <th class="p-2">Price</th>
+                    <th class="p-2">Qty</th>
+                    <th class="p-2 text-right">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="(item, index) in items" :key="index">
+                    <tr class="border-b">
+                        <td class="p-2" x-text="item.desc"></td>
+                        <td class="p-2" x-text="config.currency + parseFloat(item.price || 0).toFixed(2)"></td>
+                        <td class="p-2" x-text="item.qty"></td>
+                        <td class="p-2 text-right" x-text="config.currency + (parseFloat(item.price || 0) * parseFloat(item.qty || 0)).toFixed(2)"></td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+        
+        <div class="text-right font-bold text-xl space-y-2">
+            <p>Subtotal: <span x-text="config.currency + subTotal.toFixed(2)"></span></p>
+            <template x-if="config.useTax">
+                <p>Tax (<span x-text="config.taxRate"></span>%): <span x-text="config.currency + taxAmount.toFixed(2)"></span></p>
+            </template>
+            <p>Grand Total: <span x-text="config.currency + grandTotal.toFixed(2)"></span></p>
+        </div>
+
+        <div class="print-footer">
+            This is an electronically generated document, no signature is required.
+        </div>
+    </div>
+
+    <div x-show="activeTab === 'settings'" class="no-print space-y-8">
+        <div class="grid grid-cols-2 gap-8">
+            <div>
+                <h2 class="text-xl font-bold mb-4">Business Configuration</h2>
+                <input x-model="config.businessName" class="border p-2 w-full mb-2" placeholder="Business Name">
+                <textarea x-model="config.businessAddress" class="border p-2 w-full mb-2" placeholder="Business Address"></textarea>
+                <div class="flex gap-2">
+                    <input x-model="config.currency" class="border p-2 w-20" placeholder="Currency ($)">
+                    <input x-model="config.invoicePrefix" class="border p-2 w-24" placeholder="Prefix (INV-)">
+                    <input x-model.number="config.invoiceNumber" type="number" class="border p-2 w-24" placeholder="Next #">
+                </div>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold mb-4">Client Details</h2>
+                <input x-model="client.name" class="border p-2 w-full mb-2" placeholder="Client Name">
+                <textarea x-model="client.address" class="border p-2 w-full mb-2" placeholder="Client Billing Address"></textarea>
+                
+                <h2 class="text-xl font-bold mt-4 mb-2">Tax Settings</h2>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" x-model="config.useTax"> Enable Tax (%)
+                </label>
+                <input x-model.number="config.taxRate" type="number" class="border p-2 w-full mt-2" placeholder="Tax Rate %" :disabled="!config.useTax">
+            </div>
+        </div>
+
+        <div>
+            <h2 class="text-xl font-bold mb-4">Invoice Items</h2>
+            <template x-for="(item, index) in items" :key="index">
+                <div class="flex gap-2 mb-2">
+                    <input x-model="item.desc" class="border p-2 flex-grow" placeholder="Description">
+                    <input x-model.number="item.price" type="number" class="border p-2 w-24" placeholder="Price">
+                    <input x-model.number="item.qty" type="number" class="border p-2 w-20" placeholder="Qty">
+                    <button @click="items.splice(index, 1)" class="bg-red-500 text-white px-3">✕</button>
+                </div>
+            </template>
+            <button @click="items.push({desc: '', price: 0, qty: 1})" class="bg-blue-600 text-white px-4 py-2 mt-2 rounded">+ Add Item</button>
+        </div>
+
+        <div class="border-t pt-6">
+            <button @click="saveData()" class="bg-green-600 text-white px-6 py-2 rounded font-bold">Save All Settings</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function invoiceApp() {
+        return {
+            activeTab: 'invoice',
+            config: JSON.parse(localStorage.getItem('config')) || { 
+                businessName: 'My Company', businessAddress: '', currency: '$', 
+                invoicePrefix: 'INV-', invoiceNumber: 1001, taxRate: 0, useTax: false 
+            },
+            client: JSON.parse(localStorage.getItem('client')) || { name: '', address: '' },
+            items: JSON.parse(localStorage.getItem('items')) || [{ desc: 'Service', price: 0, qty: 1 }],
+            
+            get subTotal() { return this.items.reduce((sum, i) => sum + (parseFloat(i.price || 0) * parseFloat(i.qty || 0)), 0); },
+            get taxAmount() { return this.config.useTax ? this.subTotal * (this.config.taxRate / 100) : 0; },
+            get grandTotal() { return this.subTotal + this.taxAmount; },
+            
+            printInvoice() {
+                const oldTitle = document.title;
+                document.title = `Invoice-${this.config.invoicePrefix}${this.config.invoiceNumber}-${this.config.businessName}-${this.client.name}`;
+                window.print();
+                document.title = oldTitle;
+            },
+            
+            saveData() {
+                localStorage.setItem('config', JSON.stringify(this.config));
+                localStorage.setItem('client', JSON.stringify(this.client));
+                localStorage.setItem('items', JSON.stringify(this.items));
+                alert('Settings Saved Successfully!');
+            }
+        }
+    }
+</script>
+</body>
+</html>
