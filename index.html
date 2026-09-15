@@ -59,7 +59,8 @@
                         <td class="p-2" x-text="item.desc"></td>
                         <td class="p-2" x-text="item.unit"></td>
                         <td class="p-2" x-text="config.currency + parseFloat(item.price).toFixed(2)"></td>
-                        <td class="p-2 text-right" x-text="config.currency + parseFloat(item.price).toFixed(2)"></td>
+                        <!-- Total column updated to Unit * Unit Price -->
+                        <td class="p-2 text-right" x-text="config.currency + (parseFloat(item.unit || 1) * parseFloat(item.price)).toFixed(2)"></td>
                     </tr>
                 </template>
             </tbody>
@@ -118,14 +119,14 @@
                     <select id="prodSelect" class="border p-2 flex-grow">
                         <template x-for="(p, i) in master.products" :key="i"><option :value="i" x-text="p.desc"></option></template>
                     </select>
-                    <input type="text" id="unitInput" class="border p-2 w-20" placeholder="Unit">
+                    <input type="number" step="any" id="unitInput" class="border p-2 w-20" placeholder="Unit" value="1">
                     <button @click="addToInvoice()" class="bg-green-600 text-white px-4 py-2">Add</button>
                 </div>
                 
                 <h2 class="text-sm font-bold mt-4">Active Invoice Items:</h2>
                 <template x-for="(item, index) in items" :key="index">
                     <div class="flex gap-2 mt-2 items-center text-sm border p-1 bg-gray-50">
-                        <span class="flex-grow" x-text="`${item.desc} | Unit: ${item.unit} | Cost: ${config.currency}${parseFloat(item.price).toFixed(2)}`"></span>
+                        <span class="flex-grow" x-text="`${item.desc} | Unit: ${item.unit} | Cost: ${config.currency}${(parseFloat(item.unit || 1) * parseFloat(item.price)).toFixed(2)}`"></span>
                         <button @click="items.splice(index,1)" class="text-red-500 font-bold px-1">✕</button>
                     </div>
                 </template>
@@ -153,14 +154,17 @@
             items: JSON.parse(localStorage.getItem('items')) || [],
             master: JSON.parse(localStorage.getItem('master')) || { clients: [], products: [] },
             
-            get subTotal() { return this.items.reduce((sum, i) => sum + parseFloat(i.price), 0); },
+            // Subtotal now multiplies unit * price for each item
+            get subTotal() { 
+                return this.items.reduce((sum, i) => sum + (parseFloat(i.unit || 1) * parseFloat(i.price || 0)), 0); 
+            },
             get taxAmount() { return this.config.useTax ? this.subTotal * (this.config.taxRate / 100) : 0; },
             get grandTotal() { return this.subTotal + this.taxAmount; },
             
             applyClient(i) { this.client = { ...this.master.clients[i] }; },
             addToInvoice() {
                 const i = document.getElementById('prodSelect').value;
-                const unit = document.getElementById('unitInput').value;
+                const unit = document.getElementById('unitInput').value || 1;
                 if(i === "") return;
                 const p = this.master.products[i];
                 this.items.push({ desc: p.desc, unit: unit, price: p.price });
