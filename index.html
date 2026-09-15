@@ -58,9 +58,9 @@
                     <tr class="border-b">
                         <td class="p-2" x-text="item.desc"></td>
                         <td class="p-2" x-text="item.unit"></td>
-                        <td class="p-2" x-text="config.currency + parseFloat(item.price).toFixed(2)"></td>
-                        <!-- Total column updated to Unit * Unit Price -->
-                        <td class="p-2 text-right" x-text="config.currency + (parseFloat(item.unit || 1) * parseFloat(item.price)).toFixed(2)"></td>
+                        <td class="p-2" x-text="config.currency + parseFloat(item.price || 0).toFixed(2)"></td>
+                        <!-- Total = Unit * Unit Price -->
+                        <td class="p-2 text-right font-semibold" x-text="config.currency + itemTotal(item).toFixed(2)"></td>
                     </tr>
                 </template>
             </tbody>
@@ -117,16 +117,17 @@
                 </select>
                 <div class="flex gap-2">
                     <select id="prodSelect" class="border p-2 flex-grow">
+                        <option value="">Select Item...</option>
                         <template x-for="(p, i) in master.products" :key="i"><option :value="i" x-text="p.desc"></option></template>
                     </select>
-                    <input type="number" step="any" id="unitInput" class="border p-2 w-20" placeholder="Unit" value="1">
+                    <input type="number" step="any" min="0" id="unitInput" class="border p-2 w-24" placeholder="Qty / Unit" value="1">
                     <button @click="addToInvoice()" class="bg-green-600 text-white px-4 py-2">Add</button>
                 </div>
                 
                 <h2 class="text-sm font-bold mt-4">Active Invoice Items:</h2>
                 <template x-for="(item, index) in items" :key="index">
                     <div class="flex gap-2 mt-2 items-center text-sm border p-1 bg-gray-50">
-                        <span class="flex-grow" x-text="`${item.desc} | Unit: ${item.unit} | Cost: ${config.currency}${(parseFloat(item.unit || 1) * parseFloat(item.price)).toFixed(2)}`"></span>
+                        <span class="flex-grow" x-text="`${item.desc} | Unit: ${item.unit} | Unit Price: ${config.currency}${parseFloat(item.price || 0).toFixed(2)} | Total: ${config.currency}${itemTotal(item).toFixed(2)}`"></span>
                         <button @click="items.splice(index,1)" class="text-red-500 font-bold px-1">✕</button>
                     </div>
                 </template>
@@ -154,9 +155,16 @@
             items: JSON.parse(localStorage.getItem('items')) || [],
             master: JSON.parse(localStorage.getItem('master')) || { clients: [], products: [] },
             
-            // Subtotal now multiplies unit * price for each item
+            // Helper calculation: extracts numeric value even if units have labels, then multiplies
+            itemTotal(item) {
+                const rawUnit = String(item.unit || '').replace(/[^0-9.]/g, '');
+                const unitVal = rawUnit === '' ? 1 : parseFloat(rawUnit);
+                const priceVal = parseFloat(item.price || 0);
+                return (isNaN(unitVal) ? 1 : unitVal) * (isNaN(priceVal) ? 0 : priceVal);
+            },
+            
             get subTotal() { 
-                return this.items.reduce((sum, i) => sum + (parseFloat(i.unit || 1) * parseFloat(i.price || 0)), 0); 
+                return this.items.reduce((sum, item) => sum + this.itemTotal(item), 0); 
             },
             get taxAmount() { return this.config.useTax ? this.subTotal * (this.config.taxRate / 100) : 0; },
             get grandTotal() { return this.subTotal + this.taxAmount; },
@@ -164,10 +172,11 @@
             applyClient(i) { this.client = { ...this.master.clients[i] }; },
             addToInvoice() {
                 const i = document.getElementById('prodSelect').value;
-                const unit = document.getElementById('unitInput').value || 1;
+                const unitInput = document.getElementById('unitInput');
+                const unit = unitInput.value.trim() === '' ? 1 : unitInput.value;
                 if(i === "") return;
                 const p = this.master.products[i];
-                this.items.push({ desc: p.desc, unit: unit, price: p.price });
+                this.items.push({ desc: p.desc, unit: unit, price: parseFloat(p.price || 0) });
             },
             
             exportData() {
